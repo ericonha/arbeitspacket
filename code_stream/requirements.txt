@@ -9,5 +9,5 @@ re
 datetime
 relativedelta
 pywhatkit
-openpyxl
+openpyxl==3.1.5
 streamlit_extras
