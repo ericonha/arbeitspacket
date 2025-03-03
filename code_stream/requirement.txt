@@ -1,3 +1,11 @@
 streamlit
 numpy
 pandas
+pdfkit
+datetime
+openpyxl
+webcolors
+math
+re
+datetime
+relativedelta
