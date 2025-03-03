@@ -1,5 +1,5 @@
 streamlit
-openpyxl @ https://github.com/openpyxl/openpyxl/archive/refs/tags/3.1.5.tar.gz
+-r install.sh
 numpy
 pandas
 pdfkit
