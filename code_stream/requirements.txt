@@ -1,5 +1,5 @@
-streamlit
 openpyxl==3.1.2
+streamlit
 numpy
 pandas
 pdfkit
@@ -9,5 +9,3 @@ math
 re
 datetime
 relativedelta
-pywhatkit
-streamlit_extras
