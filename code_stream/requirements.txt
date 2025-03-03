@@ -1,4 +1,5 @@
 streamlit
+openpyxl @ https://github.com/openpyxl/openpyxl/archive/refs/tags/3.1.5.tar.gz
 numpy
 pandas
 pdfkit
@@ -9,5 +10,4 @@ re
 datetime
 relativedelta
 pywhatkit
-openpyxl==3.1.5
 streamlit_extras
