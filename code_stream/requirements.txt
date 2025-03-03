@@ -1,7 +1,7 @@
 streamlit
-openpyxl
 numpy
 pandas
+openpyxl==3.1.2 
 pdfkit
 datetime
 webcolors
