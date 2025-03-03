@@ -1,10 +1,9 @@
 streamlit
-openpyxl
+openpyxl==3.0.10
 numpy
 pandas
 pdfkit
 datetime
-openpyxl
 webcolors
 math
 re
