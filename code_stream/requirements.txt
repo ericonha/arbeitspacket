@@ -1,7 +1,6 @@
 streamlit
 numpy
 pandas
-openpyxl
 pdfkit
 datetime
 webcolors
@@ -9,3 +8,6 @@ math
 re
 datetime
 relativedelta
+pywhatkit
+openpyxl
+streamlit_extras
