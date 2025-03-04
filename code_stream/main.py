@@ -188,6 +188,15 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     pre_define_workers = input_file.get_workers_pre_defined(df)
 
+    print(len(ap1.Nr))
+    print(len(ap1.working_dates_start))
+    print(len(ap1.working_dates_end))
+    print(len(ids))
+
+    if len(ap1.Nr) != len(ids) or len(ap1.working_dates_start) != len(ap1.working_dates_end):
+        st.error("Something is wrong! Please check your inputs.")
+        return
+
     h, ids_check, Nrs, pre_def = ap1.get_workers(lista_datas_not_to_change, ids, ap1.year_start, ap1.year_end, ap1.Nr,
                                                  entity,
                                                  df, pre_define_workers)
@@ -328,7 +337,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     new_array = []
     while len(worker.list_of_workers) != 0:
-        lowest_index_elem = worker.Worker(1000, 0, 0)
+        lowest_index_elem = worker.Worker(1000, 0, 0, 0)
         for element in worker.list_of_workers:
             if element.id < lowest_index_elem.id:
                 lowest_index_elem = element
@@ -445,35 +454,31 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     month_order = {'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
                    'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12}
 
-sorted_entries = sorted(
-        AP.global_data_zettel_infos.items(),  # Sort by worker_id
-        key=lambda x: (
-            x[0],  # Sort by worker_id (x[0] is the worker_id)
-            [entry['year'] for entry in x[1]],  # Sort by year (x[1] contains the entries for each worker)
-            [entry['month'] for entry in x[1]],  # Sort by month (x[1] contains the entries for each worker)
-            [entry['AP id'] for entry in x[1]]
-        )
-    )
+    all_data = []
+    for worker_id, entries in AP.global_data_zettel_infos.items():
+        all_data.extend(entries)
 
-    for worker_id, entries in sorted_entries:
-        for entry in entries:
-            # Extract month, hours, and PM
-            month = entry['month']
-            hours = entry['hours']
-            year = entry['year']
-            AP_id = entry['AP id']
+    sorted_data = sorted(all_data, key=lambda x: (x["worker_id"], x['year'], month_order[x['month']]))
 
-            # Add a row for each entry
-            html_content += f"""
-            <tr>
-                <td>{worker_id}</td>
-                <td>{AP_id}</td>
-                <td>{month}</td>
-                <td>{year}</td>
-                <td>{hours*160}</td>
-                <td>{hours}</td>
-            </tr>
-            """
+    for entry in sorted_data:
+        # Extract month, hours, and PM
+        worker_id = entry['worker_id']
+        month = entry['month']
+        hours = entry['hours']
+        year = entry['year']
+        AP_id = entry['AP id']
+
+        # Add a row for each entry
+        html_content += f"""
+        <tr>
+            <td>{worker_id}</td>
+            <td>{AP_id}</td>
+            <td>{month}</td>
+            <td>{year}</td>
+            <td>{hours * 160}</td>
+            <td>{hours}</td>
+        </tr>
+        """
 
     # Save HTML content to a file
     with open("output.html", "w") as file:
@@ -526,7 +531,7 @@ else:
 if ap_file:
     df_ap = input_file.get_file(ap_file)
     entities = input_file.get_all_names(df_ap)  # Fetch list of entities dynamically from the file
-    entity = st.selectbox("Select Entity", entities)
+    entity = st.selectbox("Select Entity", entities[0:-1])
 
 # Input for output file name
 output_name = st.text_input("Enter the name of the file to be saved")
@@ -547,6 +552,7 @@ if st.button("Run Process"):
                 st.error(f"Error processing the file: {e}")
     else:
         st.error("Please make sure all fields are filled out correctly.")
+
 
 
 
