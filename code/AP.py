@@ -39,7 +39,7 @@ def add_entry(worker_id: int, month: str, hours: float, AP_id: str, year: int):
         global_data_zettel_infos[worker_id] = []  # Inicializa a lista se não existir
 
     # Adiciona a nova entrada
-    global_data_zettel_infos[worker_id].append({"year": year, "month": month, "hours": hours, "AP id": AP_id})
+    global_data_zettel_infos[worker_id].append({"worker_id": worker_id, "year": year, "month": month, "hours": hours, "AP id": AP_id})
 
 
 class AP:
@@ -154,7 +154,7 @@ class AP:
         new_Nr = []
         new_ids = []
         index_wh = 0
-        worker_zero = worker.Worker(0, 0, 0)
+        worker_zero = worker.Worker(0, 0, 0, 0)
         worker_pre_list = []
         data_start_pre = []
         data_end_pre = []
@@ -175,6 +175,10 @@ class AP:
             if pre_wk[0] != 0:
                 workers_pre = [item for w_pp in pre_wk for item in w_pp.split(";")]
                 for w_p in workers_pre:
+                    if " " not in w_p:
+                        ent_name = w_p.split("(")[0]
+                        worker_id_name = w_p.split("(")[1]
+                        w_p = ent_name + " " + "(" + worker_id_name
                     w_s = w_p.split(" ")
                     if w_s[0] == entity:
                         new_Nr.append(Nr[index_wh])
@@ -210,7 +214,6 @@ class AP:
                     continue
 
             index_wh += 1
-
         return worker_pre_list, data_start_pre, data_end_pre, aps_distributed
 
     def get_workers(self, lista_datas, ids, first_year, last_year, Nr, entity, df, pre_define_workers):
@@ -219,7 +222,7 @@ class AP:
         self.working_dates_start = []
         self.working_dates_end = []
         self.dates_distributed = []
-        worker_zero = worker.Worker(0, 0, 0)
+        worker_zero = worker.Worker(0, 0, 0, 0)
 
         h = []
         new_Nr = []
@@ -256,6 +259,8 @@ class AP:
 
             if pre_wk[0] != 0:
                 for strs in pre_wk:
+                    if " " not in strs:
+                        strs = strs.split("(")[0] + " " + "(" + strs.split("(")[1]
                     list_ent.append(strs.split(" ")[0])
                 if entity in list_ent:
                     self.workers.append(worker_pre_list[index_pre])
@@ -298,7 +303,7 @@ class AP:
                         new_ids.append(ids[index_wh])
                         h.append(hours_worked)
                         if index == 0:
-                            self.workers.append(worker.Worker(0, 0, 0))
+                            self.workers.append(worker.Worker(0, 0, 0, 0))
                         else:
                             counter = 0
                             for w_s in worker.list_of_workers:
@@ -343,10 +348,17 @@ def max_consecutive_months_worker_can_work(w, start_date, end_date, first_year, 
     while current_date <= end_date and total_hours_assigned <= required_hours:
         month = current_date.month - 1
         year = current_date.year
+        threshold = 0.5 if w.is_GF == 1 else divided_hours[months_supposed_to_work]
+
+        # All hours have been parse
         if total_hours_assigned == required_hours:
             break
+
+        # New year counter restarted for the next year
         if month == 0:
             sum_divided_hours = divided_hours[months_supposed_to_work]
+
+        # chcek if work time limits are being surpased or not
         if w.hours_available_per_month[year - first_year][month] >= divided_hours[months_supposed_to_work] and \
                 w.hours_available[year - first_year] >= sum_divided_hours:
             if not worked_consecutively:
@@ -416,7 +428,7 @@ def choose_workers(start_date, end_date, required_hours, first_year, last_year, 
     loop = False
     locked = 0
     counter = 0
-    worker_zero = worker.Worker(0, 0, 0)
+    worker_zero = worker.Worker(0, 0, 0, 0)
 
     while remaining_hours > 0 and current_date <= finishing_date:
 
