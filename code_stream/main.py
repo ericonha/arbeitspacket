@@ -441,35 +441,35 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                     </tr>
             """
 
-    sorted_entries = sorted(
-        AP.global_data_zettel_infos.items(),  # Sort by worker_id
-        key=lambda x: (
-            x[0],  # Sort by worker_id (x[0] is the worker_id)
-            [entry['AP id'] for entry in x[1]],
-            [entry['year'] for entry in x[1]],  # Sort by year (x[1] contains the entries for each worker)
-            [entry['month'] for entry in x[1]]  # Sort by month (x[1] contains the entries for each worker)
-        )
-    )
+    # Define the month order to ensure correct sorting
+    month_order = {'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
+                   'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12}
 
-    for worker_id, entries in sorted_entries:
-        for entry in entries:
-            # Extract month, hours, and PM
-            month = entry['month']
-            hours = entry['hours']
-            year = entry['year']
-            AP_id = entry['AP id']
+    all_data = []
+    for worker_id, entries in AP.global_data_zettel_infos.items():
+        all_data.extend(entries)
 
-            # Add a row for each entry
-            html_content += f"""
-            <tr>
-                <td>{worker_id}</td>
-                <td>{AP_id}</td>
-                <td>{month}</td>
-                <td>{year}</td>
-                <td>{hours*160}</td>
-                <td>{hours}</td>
-            </tr>
-            """
+    sorted_data = sorted(all_data, key=lambda x: (x["worker_id"], x['year'], month_order[x['month']]))
+
+    for entry in sorted_data:
+        # Extract month, hours, and PM
+        worker_id = entry['worker_id']
+        month = entry['month']
+        hours = entry['hours']
+        year = entry['year']
+        AP_id = entry['AP id']
+
+        # Add a row for each entry
+        html_content += f"""
+        <tr>
+            <td>{worker_id}</td>
+            <td>{AP_id}</td>
+            <td>{month}</td>
+            <td>{year}</td>
+            <td>{hours * 160}</td>
+            <td>{hours}</td>
+        </tr>
+        """
 
     # Save HTML content to a file
     with open("output.html", "w") as file:
