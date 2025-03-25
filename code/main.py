@@ -32,6 +32,23 @@ class bcolors:
 # /Users/alexrhe/Documents/Arbeitsplan_HealthStateEngines_V3.xlsx
 # /Users/alexrhe/Documents/Worker_HealthStateEngines.xlsx
 
+def get_german_month(english_month):
+    months = {
+        "January": "Januar",
+        "February": "Februar",
+        "March": "März",
+        "April": "April",
+        "May": "Mai",
+        "June": "Juni",
+        "July": "Juli",
+        "August": "August",
+        "September": "September",
+        "October": "Oktober",
+        "November": "November",
+        "December": "Dezember"
+    }
+    return months.get(english_month, "Invalid month")
+
 def show_popup(message):
     msg = QMessageBox()
     msg.setIcon(QMessageBox.Information)
@@ -330,14 +347,14 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             </style>
         </head>
         <body>
-            <h1>Arbeits Packet Report</h1>
+            <h1>Arbeitspaketbericht</h1>
             <table>
                 <tr>
                     <th>Id</th>
                     <th>AP</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Id Worker</th>
+                    <th>Startdatum</th>
+                    <th>Enddatum</th>
+                    <th>Id Arbeiter</th>
                     <th>WH</th>
                 </tr>
         """
@@ -405,15 +422,15 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             </style>
         </head>
         <body>
-            <h1>Sum Worker Report</h1>
+            <h1>Summen arbeiterbericht</h1>
             <table>
                 <tr>
-                    <th>year</th>
+                    <th>Jahr</th>
         """
 
     for i in range(len(worker.list_of_workers)):
         html_content += f"""
-                        <th>Sum Worker {i + 1}</th>
+                        <th>Summen arbeiter {i + 1}</th>
             """
     html_content += f"""
                 </tr>
@@ -426,7 +443,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     new_array = []
     while len(worker.list_of_workers) != 0:
-        lowest_index_elem = worker.Worker(1000, 0, 0)
+        lowest_index_elem = worker.Worker(1000, 0, 0, 0)
         for element in worker.list_of_workers:
             if element.id < lowest_index_elem.id:
                 lowest_index_elem = element
@@ -463,11 +480,11 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             </table>
             <table>
                 <tr>
-                   <th>Sum Total Hours</th>
-                   <th>hours not distributed</th>
-                   <th>APs not distributed</th>
-                   <th>Cost of Project</th>
-                   <th>Number of APs</th>
+                   <th>Summe der Gesamtstunden</th>
+                   <th>Stunden nicht verteilt</th>
+                   <th>APs nicht verteilt</th>
+                   <th>Projektkosten</th>
+                   <th>Anzahl der APs</th>
                 </tr>
         """
 
@@ -484,7 +501,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     aps_str = aps_str[:-2]
 
     if aps_str == "":
-        aps_str = "all aps distributed"
+        aps_str = "Alle APs verteilt"
 
     html_content += f"""
             <tr>
@@ -526,15 +543,15 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                 </style>
             </head>
             <body>
-                <h1>Dates distribution</h1>
+                <h1>Terminverteilung</h1>
                 <table>
                     <tr>
-                        <th>Worker Id</th>
-                        <th>AP Id</th>
-                        <th>Month</th>
-                        <th>Year</th>
-                        <th>Hours</th>
-                        <th>PM (used to calculate hours 1 PM = 160 hours) </th>
+                        <th>Arbeiter-ID</th>
+                        <th>AP-Id</th>
+                        <th>Monat</th>
+                        <th>Jahr</th>
+                        <th>Stunden</th>
+                        <th>PM (wird zur Stundenberechnung verwendet: 1 PM = 160 Stunden) </th>
                     </tr>
             """
 
@@ -561,12 +578,73 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             <tr>
                 <td>{worker_id}</td>
                 <td>{AP_id}</td>
-                <td>{month}</td>
+                <td>{get_german_month(month)}</td>
                 <td>{year}</td>
                 <td>{hours*160}</td>
                 <td>{hours}</td>
             </tr>
             """
+    html_content += """
+             </table>
+         </body>
+         </html>
+         """
+
+    # Generate HTML content with styling for the second table
+    html_content += """
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                th, td {
+                    border: 1px solid #dddddd;
+                    text-align: left;
+                    padding: 10px;
+                }
+                th {
+                    background-color: #f2f2f2;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Monatlicher Arbeiterbericht</h1>
+            <table>
+                <tr>
+                    <th>Arbeiter</th>
+                    <th>Stunden</th>
+                    <th>Jahr</th>
+                    <th>Monat</th>
+                 </tr>
+        """
+
+    months_german = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
+                    "November", "Dezember"]
+
+    for wk in worker.list_of_workers:
+        for year_idx, year in enumerate(years):
+            for month_idx in range(lista_months[year_idx]):  # Garantindo que os meses sejam iterados corretamente
+                hours = 1 - wk.hours_available_per_month[year_idx][month_idx]  # Pega as horas disponíveis
+                html_content += f"""
+                <tr>
+                    <td>{wk.id}</td>
+                    <td>{hours}</td>
+                    <td>{year}</td>
+                    <td>{months_german[month_idx]}</td>
+                </tr>
+                """
+
+    html_content += """
+            </table>
+        </body>
+        </html>
+    """
 
     # Save HTML content to a file
     with open("output.html", "w") as file:
