@@ -11,7 +11,8 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, Q
     QComboBox, QMessageBox, QLineEdit, QDialog
 from PySide6.QtGui import QFont
 
-#!/usr/bin/env python3
+
+# !/usr/bin/env python3
 
 
 class bcolors:
@@ -48,6 +49,7 @@ def get_german_month(english_month):
         "December": "Dezember"
     }
     return months.get(english_month, "Invalid month")
+
 
 def show_popup(message):
     msg = QMessageBox()
@@ -273,7 +275,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     # ap1.Nr = ap1.Nr[0:-1]
 
     # get ids of pm
-    ids = input_file.get_nrs(df)
+    ids = input_file.get_nrs(df, entity)
 
     # clear workers info
     worker.list_of_workers.clear()
@@ -306,12 +308,14 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     pre_define_workers = input_file.get_workers_pre_defined(df)
 
+    AP.shuffle_aligned_lists(ap1.Nr, ids, lista_datas_not_to_change[0], lista_datas_not_to_change[1], pre_define_workers)
+
     h, ids_check, Nrs, pre_def = ap1.get_workers(lista_datas_not_to_change, ids, ap1.year_start, ap1.year_end, ap1.Nr,
                                                  entity,
                                                  df, pre_define_workers)
 
     # Generate HTML content with styling
-    html_content = """
+    html_content_1 = """
         <html>
         <head>
             <meta charset="UTF-8">
@@ -360,8 +364,11 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         """
 
     print(sum(h))
+    print(len(h))
+    print(len(ap1.working_dates_start))
     print(h)
     sum_test = 0
+    sum_test2 = 0
     ap_not_distribute = []
     years = np.linspace(ap1.year_start, ap1.year_end, ap1.year_end - ap1.year_start + 1)
     array_working_hours_per_year = np.zeros((len(worker.list_of_workers), len(years)))
@@ -380,7 +387,8 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                 ap_not_distribute.append(id)
             else:
                 allocate_value(array_working_hours_per_year, dates_st, dates_ft, w_id, wh, years)
-            html_content += f"""
+                sum_test2 += wh
+            html_content_1 += f"""
                         <tr style="background-color: {row_color};">
                             <td>{id}</td>
                             <td>{Nr}</td>
@@ -390,7 +398,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                             <td>{wh}</td>
                         </tr>
                 """
-    html_content += """
+    html_content_1 += """
                 </table>
                 <div style="page-break-before: always;"></div>
             </body>
@@ -399,7 +407,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     print(sum_test)
 
     # Generate HTML content with styling for the second table
-    html_content += """
+    html_content_1 += """
         <html>
         <head>
             <meta charset="UTF-8">
@@ -429,10 +437,10 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         """
 
     for i in range(len(worker.list_of_workers)):
-        html_content += f"""
+        html_content_1 += f"""
                         <th>Summen arbeiter {i + 1}</th>
             """
-    html_content += f"""
+    html_content_1 += f"""
                 </tr>
         """
 
@@ -442,29 +450,36 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     cost_project = 0
 
     new_array = []
+    new_array_hours = []
     while len(worker.list_of_workers) != 0:
-        lowest_index_elem = worker.Worker(1000, 0, 0, 0)
+        lowest_index_elem = worker.Worker(1000, 0, 0, 0, "", "")
         for element in worker.list_of_workers:
             if element.id < lowest_index_elem.id:
                 lowest_index_elem = element
         new_array.append(lowest_index_elem)
+        index = worker.list_of_workers.index(lowest_index_elem)
+        new_array_hours.append(hours_year_work_every_one[index])
+
         worker.list_of_workers.remove(lowest_index_elem)
+        hours_year_work_every_one.remove(hours_year_work_every_one[index])
 
     worker.list_of_workers = new_array
+    hours_year_work_every_one = new_array_hours
 
     # Add rows for sum worker data
     for i in range(len(years)):
-        html_content += f"<tr>"
-        html_content += f"<td>{int(years[i])}</td>"
+        html_content_1 += f"<tr>"
+        html_content_1 += f"<td>{int(years[i])}</td>"
         for j in range(len(worker.list_of_workers)):
-            html_content += f"<td>{(hours_year_work_every_one[j][i])-(worker.list_of_workers[j].hours_available[i][0])}</td>"
+            html_content_1 += f"<td>{(hours_year_work_every_one[j][i]) - (worker.list_of_workers[j].hours_available[i][0])}</td>"
             sum_t += hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]
-            cost_project += float(hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]) * worker.list_of_workers[j].salary
-        html_content += f"</tr>"
+            cost_project += float(hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]) * \
+                            worker.list_of_workers[j].salary
+        html_content_1 += f"</tr>"
 
     # Add a row for total hours
-    html_content += "<tr>"
-    html_content += "<td><strong>Total</strong></td>"
+    html_content_1 += "<tr>"
+    html_content_1 += "<td><strong>Total</strong></td>"
 
     workers_total_hours = []
 
@@ -473,10 +488,10 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     # Add totals for each worker
     for total in workers_total_hours:
-        html_content += f"<td><strong>{total}</strong></td>"
+        html_content_1 += f"<td><strong>{total}</strong></td>"
 
     # Close the table and HTML body for the second table
-    html_content += """
+    html_content_1 += """
             </table>
             <table>
                 <tr>
@@ -503,7 +518,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     if aps_str == "":
         aps_str = "Alle APs verteilt"
 
-    html_content += f"""
+    html_content_1 += f"""
             <tr>
                 <td>{sum_t_b}</td>
                 <td>{sum_test}</td>
@@ -513,14 +528,15 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             </tr>
         """
 
-    html_content += """
+    html_content_1 += """
         </table>
         </body>
         </html>
         """
 
     # Generate HTML content with styling for the second table
-    html_content += """
+    html_content_2 = ""
+    html_content_2 += """
             <html>
             <head>
                 <meta charset="UTF-8">
@@ -546,7 +562,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                 <h1>Terminverteilung</h1>
                 <table>
                     <tr>
-                        <th>Arbeiter-ID</th>
+                        <th>Arbeiter</th>
                         <th>AP-Id</th>
                         <th>Monat</th>
                         <th>Jahr</th>
@@ -573,25 +589,34 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             year = entry['year']
             AP_id = entry['AP id']
 
+            if hours == 0:
+                continue
+
+            name = ""
+
+            for wks in worker.list_of_workers:
+                if wks.id == worker_id:
+                    name = wks.name + " " + wks.surname
+
             # Add a row for each entry
-            html_content += f"""
+            html_content_2 += f"""
             <tr>
-                <td>{worker_id}</td>
+                <td>{name}</td>
                 <td>{AP_id}</td>
                 <td>{get_german_month(month)}</td>
                 <td>{year}</td>
-                <td>{hours*160}</td>
+                <td>{hours * 160}</td>
                 <td>{hours}</td>
             </tr>
             """
-    html_content += """
+    html_content_2 += """
              </table>
          </body>
          </html>
          """
 
     # Generate HTML content with styling for the second table
-    html_content += """
+    html_content_2 += """
         <html>
         <head>
             <meta charset="UTF-8">
@@ -625,22 +650,34 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         """
 
     months_german = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
-                    "November", "Dezember"]
+                     "November", "Dezember"]
 
+    last_month = 12
     for wk in worker.list_of_workers:
+        first_year = 0
         for year_idx, year in enumerate(years):
-            for month_idx in range(lista_months[year_idx]):  # Garantindo que os meses sejam iterados corretamente
-                hours = 1 - wk.hours_available_per_month[year_idx][month_idx]  # Pega as horas disponíveis
-                html_content += f"""
+            if first_year == 0:
+                months_to_iterate = 12 - lista_months[0]
+                first_year = 1
+                last_month = 12
+            else:
+                months_to_iterate = 0
+                last_month = lista_months[year_idx]
+
+            for i in range(months_to_iterate, last_month):
+                month_idx = i
+                hours = 1 - wk.hours_available_per_month[year_idx][month_idx]
+
+                html_content_2 += f"""
                 <tr>
-                    <td>{wk.id}</td>
+                    <td>{wk.name + " " + wk.surname}</td>
                     <td>{hours}</td>
-                    <td>{year}</td>
+                    <td>{int(year)}</td>
                     <td>{months_german[month_idx]}</td>
                 </tr>
                 """
 
-    html_content += """
+    html_content_2 += """
             </table>
         </body>
         </html>
@@ -648,7 +685,10 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     # Save HTML content to a file
     with open("output.html", "w") as file:
-        file.write(html_content)
+        file.write(html_content_1)
+
+    with open("output2.html", "w") as file:
+        file.write(html_content_2)
 
     if len(name_of_output_file) == 0:
         print("Error name of pdf, it cannot be empty")
@@ -659,15 +699,21 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         exit(1)
 
     # Convert HTML to PDF
-    file_name = name_of_output_file + "_" + entity + ".pdf"
-    pdfkit.from_file("output.html", file_name)
+    file_name_1 = name_of_output_file + "_" + entity + ".pdf"
+    pdfkit.from_file("output.html", file_name_1)
 
-    os.system(f"open {file_name}")
+    file_name_2 = name_of_output_file + "_" + entity + "_" + "organization" + ".pdf"
+    pdfkit.from_file("output2.html", file_name_2)
+
+    os.system(f"open {file_name_1}")
+
+    os.system(f"open {file_name_2}")
 
     if sum_test > 0:
-        show_popup(f"Some APs couldn't be distributed among the workers please check:{file_name} for more information")
+        show_popup(
+            f"Some APs couldn't be distributed among the workers please check:{file_name_1} for more information")
     else:
-        show_popup(f"All APs were distributed among the workers please check:{file_name} for more information")
+        show_popup(f"All APs were distributed among the workers please check:{file_name_1} for more information")
 
 
 def round_0_25(duration):
