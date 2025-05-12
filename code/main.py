@@ -1,16 +1,16 @@
 import os
 from datetime import datetime
-
+from io import BytesIO
 import input_file
 import numpy as np
 import worker
 import AP
-import pdfkit
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QFileDialog, QLabel, \
     QComboBox, QMessageBox, QLineEdit, QDialog
 from PySide6.QtGui import QFont
-
+from xhtml2pdf import pisa
+from weasyprint import HTML
 
 # !/usr/bin/env python3
 
@@ -275,7 +275,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     # ap1.Nr = ap1.Nr[0:-1]
 
     # get ids of pm
-    ids = input_file.get_nrs(df, entity)
+    ids = input_file.get_nrs(df)
 
     # clear workers info
     worker.list_of_workers.clear()
@@ -308,60 +308,75 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     pre_define_workers = input_file.get_workers_pre_defined(df)
 
-    AP.shuffle_aligned_lists(ap1.Nr, ids, lista_datas_not_to_change[0], lista_datas_not_to_change[1], pre_define_workers)
+    # AP.shuffle_aligned_lists(ap1.Nr, ids, lista_datas_not_to_change[0], lista_datas_not_to_change[1], pre_define_workers)
 
     h, ids_check, Nrs, pre_def = ap1.get_workers(lista_datas_not_to_change, ids, ap1.year_start, ap1.year_end, ap1.Nr,
                                                  entity,
                                                  df, pre_define_workers)
 
-    # Generate HTML content with styling
     html_content_1 = """
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    margin: 20px;
-                }
-                h1 {
-                    color: #333;
-                    text-align: center;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                }
-                th, td {
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }
-                th {
-                    background-color: #f2f2f2;
-                    color: #333;
-                }
-                tr:nth-child(even) {
-                    background-color: #f9f9f9;
-                }
-                tr:hover {
-                    background-color: #f5f5f5;
-                }
-            </style>
-        </head>
-        <body>
-            <h1>Arbeitspaketbericht</h1>
-            <table>
-                <tr>
-                    <th>Id</th>
-                    <th>AP</th>
-                    <th>Startdatum</th>
-                    <th>Enddatum</th>
-                    <th>Id Arbeiter</th>
-                    <th>WH</th>
-                </tr>
-        """
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+            }
+            h1 {
+                color: #333;
+                text-align: center;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+                table-layout: fixed;
+            }
+            th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+                overflow: hidden;
+                white-space: normal;
+                word-break: normal;      /* Only break at natural points */
+                hyphens: auto;           /* Allow hyphenation */
+            }
+            th {
+                background-color: #f2f2f2;
+                color: #333;
+            }
+            tr:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+            tr:hover {
+                background-color: #f5f5f5;
+            }
+            td:nth-child(2) {
+                font-size: 12px;  /* Adjust the font size as needed */
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Arbeitspaketbericht</h1>
+        <table>
+            <colgroup>
+                <col style="width:10%">    <!-- Id -->
+                <col style="width:37%">   <!-- AP (WIDER) -->
+                <col style="width:17%">   <!-- Startdatum -->
+                <col style="width:17%">   <!-- Enddatum -->
+                <col style="width:10%">    <!-- Id Arbeiter -->
+                <col style="width:8%">    <!-- WH -->
+            </colgroup>
+            <tr>
+                <th>Id</th>
+                <th>AP</th>
+                <th>Startdatum</th>
+                <th>Enddatum</th>
+                <th>Id Arbeiter</th>
+                <th>WH</th>
+            </tr>
+    """
 
     print(sum(h))
     print(len(h))
@@ -423,6 +438,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                     border: 1px solid #dddddd;
                     text-align: left;
                     padding: 10px;
+                    font-size: 12px;
                 }
                 th {
                     background-color: #f2f2f2;
@@ -471,10 +487,10 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         html_content_1 += f"<tr>"
         html_content_1 += f"<td>{int(years[i])}</td>"
         for j in range(len(worker.list_of_workers)):
-            html_content_1 += f"<td>{(hours_year_work_every_one[j][i]) - (worker.list_of_workers[j].hours_available[i][0])}</td>"
+            html_content_1 += f"<td>{round((hours_year_work_every_one[j][i]) - (worker.list_of_workers[j].hours_available[i][0]),2)}</td>"
             sum_t += hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]
-            cost_project += float(hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]) * \
-                            worker.list_of_workers[j].salary
+            cost_project += round(float(hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]) * \
+                            worker.list_of_workers[j].salary,2)
         html_content_1 += f"</tr>"
 
     # Add a row for total hours
@@ -488,7 +504,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     # Add totals for each worker
     for total in workers_total_hours:
-        html_content_1 += f"<td><strong>{total}</strong></td>"
+        html_content_1 += f"<td><strong>{round(total,2)}</strong></td>"
 
     # Close the table and HTML body for the second table
     html_content_1 += """
@@ -596,7 +612,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
             for wks in worker.list_of_workers:
                 if wks.id == worker_id:
-                    name = wks.name + " " + wks.surname
+                    name = str(wks.name) + " " + str(wks.surname)
 
             # Add a row for each entry
             html_content_2 += f"""
@@ -670,7 +686,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
                 html_content_2 += f"""
                 <tr>
-                    <td>{wk.name + " " + wk.surname}</td>
+                    <td>{str(wk.name) + " " + str(wk.surname)}</td>
                     <td>{hours}</td>
                     <td>{int(year)}</td>
                     <td>{months_german[month_idx]}</td>
@@ -698,22 +714,13 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         print("Error name of pdf, it is way too big")
         exit(1)
 
-    # Convert HTML to PDF
-    file_name_1 = name_of_output_file + "_" + entity + ".pdf"
-    pdfkit.from_file("output.html", file_name_1)
+    pdf_output = BytesIO()
+    pdf_output_2 = BytesIO()
 
-    file_name_2 = name_of_output_file + "_" + entity + "_" + "organization" + ".pdf"
-    pdfkit.from_file("output2.html", file_name_2)
+    HTML('output.html').write_pdf(name_of_output_file + "_datum" + ".pdf")
+    HTML('output2.html').write_pdf(name_of_output_file+"_organizer"+".pdf")
+    print("acabou")
 
-    os.system(f"open {file_name_1}")
-
-    os.system(f"open {file_name_2}")
-
-    if sum_test > 0:
-        show_popup(
-            f"Some APs couldn't be distributed among the workers please check:{file_name_1} for more information")
-    else:
-        show_popup(f"All APs were distributed among the workers please check:{file_name_1} for more information")
 
 
 def round_0_25(duration):
@@ -786,6 +793,15 @@ def allocate_value(array, start_date, end_date, worker_id, value, years):
             array[worker_id - 1][year_index] += year_allocation
 
     return array
+
+# Function to open the PDF after it's created
+def open_pdf(file_path):
+    if os.name == 'posix':  # For Linux and macOS
+        os.system(f'open "{file_path}"')
+    elif os.name == 'nt':  # For Windows
+        os.system(f'start {file_path}')
+    else:
+        print("Unsupported OS")
 
 
 def main():
