@@ -4,8 +4,6 @@ import datetime
 import numpy as np
 import datetime
 from dateutil.relativedelta import relativedelta
-import random
-from collections import defaultdict
 
 
 class bcolors:
@@ -576,35 +574,3 @@ def round_0_25(duration):
     while comparator < duration:
         comparator += 0.25
     return comparator
-
-
-def shuffle_aligned_lists(Nr, ids, list_start, list_end, pre_define_workers):
-    # Step 1: Identify duplicate groups in Nr and ids
-    index_groups = defaultdict(list)
-    seen = {}
-
-    for i, item in enumerate(Nr):
-        key = (item, ids[i])  # Consider both Nr and ids for grouping
-        if key in seen:
-            index_groups[seen[key]].append(i)
-        else:
-            group_id = len(index_groups)
-            seen[key] = group_id
-            index_groups[group_id].append(i)
-
-    # Step 2: Shuffle group indices
-    group_ids = list(index_groups.keys())
-    random.shuffle(group_ids)
-
-    # Step 3: Reorder lists based on shuffled groups
-    new_Nr, new_ids, new_list_start, new_list_end, new_pre_define_workers = [], [], [], [], []
-
-    for group_id in group_ids:
-        for i in index_groups[group_id]:
-            new_Nr.append(Nr[i])
-            new_ids.append(ids[i])
-            new_list_start.append(list_start[i])
-            new_list_end.append(list_end[i])
-            new_pre_define_workers.append(pre_define_workers[i])
-
-    return new_Nr, new_ids, new_list_start, new_list_end, new_pre_define_workers
