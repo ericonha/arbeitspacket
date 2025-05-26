@@ -1,742 +1,495 @@
-import input_file
-import worker
-import datetime
+import openpyxl
+import pandas as pd
+from openpyxl import load_workbook
 import numpy as np
-import datetime
-from dateutil.relativedelta import relativedelta
-import random
-from typing import List, Tuple, Any
-from collections import Counter
+import webcolors
+import worker
+import math
+import worker
+
+com_id = 0
+total_id = 0
+step_increment = 0
+
+# Function to read the Excel file using pandas
+def get_file(filepath):
+    # Read the Excel file into a pandas DataFrame
+    try:
+        df = pd.DataFrame(pd.read_excel(filepath))
+    except:
+        print("Error, No such file founded: Arbeitspakete file")
+        exit(1)
+    return df
 
 
-worker_0 = worker.Worker(0, 0, 0, 0, "", "", 0)
-
-order_aps = []
-
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
-# Import necessary modules and classes
-
-def months_between(start_date, end_date):
-    # Calculate months between two dates
-    start_date = datetime.datetime.strptime(start_date, "%d.%m.%Y")
-    end_date = datetime.datetime.strptime(end_date, "%d.%m.%Y")
-    return (end_date.year - start_date.year) * 12 + end_date.month - start_date.month + 1
-
-
-global_data_zettel_infos = {}
-
-
-def add_entry(worker_id: int, month: str, hours: float, AP_id: str, year: int):
-    """Adiciona uma entrada no dicionário global."""
-    global global_data_zettel_infos
-
-    # Verifica se a chave worker_id existe, se não inicializa a lista
-    if worker_id not in global_data_zettel_infos:
-        global_data_zettel_infos[worker_id] = []  # Inicializa a lista se não existir
-
-    # Adiciona a nova entrada
-    global_data_zettel_infos[worker_id].append(
-        {"worker_id": worker_id, "year": year, "month": month, "hours": hours, "AP id": AP_id})
-
-
-class AP:
-    def __init__(self):
-        # Initialize the Annual Planner with empty lists and variables
-        self.aps_number_distributed = []
-        self.dates_distributed = []
-        self.dates_st = []  # List to store start dates
-        self.dates_ft = []  # List to store end dates
-        self.intervals = []  # List to store intervals between start and end dates
-        self.workers = []  # List to store assigned workers
-        self.hours = []  # List to store worked hours
-        self.year_start = 0  # Variable to store the start year
-        self.year_end = 0  # Variable to store the end year
-        self.working_hours = []  # List to store individual working hours
-        self.Nr = []  # List to store the number of workers
-        self.working_dates_start = []
-        self.working_dates_end = []
-        self.divider_counter = 0  # see how many times we split APs up
-
-    def add_dates(self, dates_start_list, dates_end_list):
-        # Add start and end dates to the planner
-        for dt in dates_end_list:
-            self.dates_ft.append(dt)
-
-        for dt in dates_start_list:
-            self.dates_st.append(dt)
-
-    def get_hours(self, hours):
-        # Set the hours worked for each interval
-        self.hours = hours
-
-    def add_Nr(self, Nr):
-        # Add the number of workers
-        self.Nr = Nr
-
-    def get_smallest_year(self):
-        # Determine the smallest year in the provided dates
-        smallest_year = 1000000
-        for dt in self.dates_st:
-            temp_year = int(dt[6:])
-            if temp_year < smallest_year:
-                smallest_year = temp_year
-        self.year_start = smallest_year
-
-    def get_biggest_year(self):
-        # Determine the biggest year in the provided dates
-        biggest_year = 0
-        for dt in self.dates_ft:
-            temp_year = int(dt[6:])
-            if temp_year > biggest_year:
-                biggest_year = temp_year
-        self.year_end = biggest_year
-
-    def check_if_same_years(self, ids, repeted_wh_ids, list_begin, list_end):
-        # Check if intervals span across multiple years and calculate duration for each year
-        index_Nr = 0
-        index = 0
-        for dt in zip(self.dates_st, self.dates_ft):
-            st = dt[0]
-            ft = dt[1]
-            year_begin = list_begin[index]
-            year_end = list_end[index]
-
-            if year_begin == year_end:
-                # If start and end dates are in the same year, calculate interval directly
-                self.intervals.append([calculate_delta(st, ft)])
-                self.working_dates_start.append(st)
-                self.working_dates_end.append(ft)
-
+def get_workers_info(filepath, lista_months):
+    worker.list_of_av_worker.clear()
+    try:
+        pf = pd.DataFrame(pd.read_excel(filepath))
+    except:
+        print("Error, No such file founded: Worker File")
+        exit(1)
+    list_workers = []
+    counter = 0
+    for line in pf.values.__array__()[1:]:
+        try:
+            val = float(line[-2])
+            if np.isnan(val):
+                pm_per_ap = 10
             else:
-                # If start and end dates span across multiple years, calculate intervals for each year
-                intervals_years = []
-                start_year = int(st[6:])
-                end_year = int(ft[6:])
-                delta_year = end_year - start_year + 1
-                unix_st = st
-                unix_end = ""
-                counter = 0
-                for year in range(delta_year):
-                    if year > 0:
-                        unix_st = "01.01." + str(int(st[6:]) + year)
+                pm_per_ap = val
+        except (ValueError, TypeError):
+            pm_per_ap = 10
 
-                    if year == delta_year - 1:
-                        unix_end = ft
-                    else:
-                        unix_end = "31.12." + str(int(st[6:]) + year)
-
-                    delta_unix = calculate_delta(unix_st, unix_end)
-                    self.working_dates_start.append(unix_st)
-                    self.working_dates_end.append(unix_end)
-                    intervals_years.append(delta_unix)
-
-                    if counter == 0:
-                        Nr_clone = self.Nr[index_Nr]
-                        self.Nr.insert(index_Nr, Nr_clone)
-
-                        ids_clone = ids[index_Nr]
-                        ids.insert(index_Nr, ids_clone)
-
-                        repeted_wh_ids.append(index_Nr)
-
-                        index_Nr = index_Nr + 1
-                        counter = counter + 1
-
-                self.intervals.append(intervals_years)
-            index_Nr = index_Nr + 1
-            index += 1
-
-    def generate_fix_workers(self, lista_datas, ids, first_year, last_year, Nr, entity, df, pre_define_workers):
-
-        h = []
-        new_Nr = []
-        new_ids = []
-        index_wh = 0
-        worker_zero = worker_0
-        worker_pre_list = []
-        data_start_pre = []
-        data_end_pre = []
-        aps_distributed = []
-        hours_worked = []
-
-        for idx, (start_date, end_date, interval_hours, pre_wk) in enumerate(
-                zip(self.dates_st, self.dates_ft, self.hours, pre_define_workers)):
-            interval_hours = float(interval_hours)
-
-            # Calculate total months between start and end dates
-            total_months = months_between(start_date, end_date)
-
-            # Calculate average hours per month for this interval
-            avg_hours_per_month = interval_hours / total_months
-
-            checker = 0
-
-            if pre_wk[0] != 0:
-                workers_pre = [item for w_pp in pre_wk for item in w_pp.split(";")]
-                for w_p in workers_pre:
-                    if " " not in w_p:
-                        ent_name = w_p.split("(")[0]
-                        worker_id_name = w_p.split("(")[1]
-                        w_p = ent_name + " " + "(" + worker_id_name
-                    w_s = w_p.split(" ")
-                    if w_s[0] == entity:
-                        new_Nr.append(Nr[index_wh])
-                        new_ids.append(ids[index_wh])
-                        for wks in worker.list_of_workers:
-                            if int(w_s[1][1]) == wks.id:
-                                max_m, h_s, m_s = max_consecutive_months_worker_can_work(wks,
-                                                                                         datetime.datetime.strptime(
-                                                                                             start_date, "%d.%m.%Y"),
-                                                                                         datetime.datetime.strptime(
-                                                                                             end_date, "%d.%m.%Y"),
-                                                                                         first_year,
-                                                                                         interval_hours)
-                                if max(h_s) > 0:
-                                    hours_worked.append(h_s)
-                                    update_worker(wks, h_s, first_year, last_year,
-                                                  generate_monthly_dates(start_date, end_date))
-                                    worker_pre_list.append(wks)
-                                    for d, h_l in zip(m_s, h_s):
-                                        if h_l > 0:
-                                            add_entry(wks.id, get_month_name(d), h_l, ids[index_wh], d.year)
-                                        else:
-                                            add_entry(worker_zero.id, get_month_name(d), h_l, ids[index_wh], d.year)
-                                            break
-                                    break
-                                else:
-                                    worker_pre_list.append(worker_zero)
-                                    hours_worked.append([interval_hours])
-
-                        data_start_pre.append(start_date)
-                        data_end_pre.append(end_date)
-                        aps_distributed.append(ids[index_wh])
-                        index_wh += 1
-                        checker += 1
-                if checker != 0:
-                    continue
-
-            index_wh += 1
-        return worker_pre_list, data_start_pre, data_end_pre, aps_distributed, hours_worked
-
-    def get_workers(self, lista_datas, ids, first_year, last_year, Nr, entity, df, pre_define_workers, New_hours):
-        self.workers = []
-        self.working_hours = []
-        self.working_dates_start = []
-        self.working_dates_end = []
-        self.dates_distributed = []
-        worker_zero = worker_0
-
-        h = []
-        new_Nr = []
-        new_ids = []
-        index_wh = 0
-        list_pre_def = []
-
-        ids = list(dict.fromkeys(ids))  # Remove duplicates
-        Nr = list(dict.fromkeys(Nr))  # Remove duplicates
-
-        # calculating pre define workers
-        worker_pre_list, data_start_pre, data_end_pre, aps_distributed, hours_worked = self.generate_fix_workers(
-            lista_datas, ids,
-            first_year,
-            last_year, Nr,
-            entity, df,
-            pre_define_workers)
-        index_pre = 0
-
-        for idx, (start_date, end_date, interval_hours, pre_wk) in enumerate(
-                zip(lista_datas[0], lista_datas[1], New_hours, pre_define_workers)):
-            interval_hours = float(interval_hours)
-
-            # Calculate total months between start and end dates
-            total_months = months_between(start_date, end_date)
-
-            # Calculate average hours per month for this interval
-            avg_hours_per_month = interval_hours / total_months
-
-            if float(interval_hours) <= float(0):
-                index_wh += 1
-                continue
-
-            list_ent = []
-
-            if pre_wk[0] != 0:
-                for strs in pre_wk:
-                    if " " not in strs:
-                        strs = strs.split("(")[0] + " " + "(" + strs.split("(")[1]
-                    list_ent.append(strs.split(" ")[0])
-                if entity in list_ent:
-                    self.workers.append(worker_pre_list[index_pre])
-                    self.working_dates_start.append(data_start_pre[index_pre])
-                    self.working_dates_end.append(data_end_pre[index_pre])
-                    self.aps_number_distributed.append(aps_distributed[index_pre])
-                    new_Nr.append(Nr[index_wh])
-                    new_ids.append(ids[index_wh])
-                    h.append(sum(hours_worked[index_pre]))
-                    if sum(hours_worked[index_pre]) != interval_hours:
-                        self.workers.append(worker_zero)
-                        self.working_dates_start.append(data_start_pre[index_pre])
-                        self.working_dates_end.append(data_end_pre[index_pre])
-                        self.aps_number_distributed.append(aps_distributed[index_pre])
-                        new_Nr.append(Nr[index_wh])
-                        new_ids.append(ids[index_wh])
-                        h.append(interval_hours - sum(hours_worked[index_pre]))
-                    index_pre += 1
-                    index_wh += 1
-                    list_pre_def.append(1)
-                    continue
-
-            ch_workers, hours, dates = choose_workers(start_date, end_date, interval_hours, first_year, last_year,
-                                                      ids[index_wh])
-
-            if len(ch_workers) == 1:
-                new_Nr.append(Nr[index_wh])
-                new_ids.append(ids[index_wh])
-
-                h.append(hours[0])
-                self.workers.append(ch_workers[0])
-                self.working_dates_start.append(start_date)
-                self.working_dates_end.append(end_date)
-                self.dates_distributed.append(dates)
-                self.aps_number_distributed.append(ids[index_wh])
-                list_pre_def.append(0)
-
-                #new idea
-                order_aps.append((Nr[index_wh],ids[index_wh],start_date,end_date,dates,sum(hours),ch_workers[0]))
-
-            else:
-                workers_array = np.zeros((len(worker.list_of_workers) + 1))
-                self.divider_counter += 1 - hours.count(0)
-
-                for wk, wh in zip(ch_workers, hours):
-                    workers_array[wk.id] += wh
-                    list_pre_def.append(0)
+        if counter==0:
+            global step_increment
+            step_increment = float(line[-1])
+            counter += 1
+        if float(line[-5]) != 0:
+            w = worker.Worker(line[0], line[-4], len(line) - 8, float(line[-5])/100, line[1], line[2], pm_per_ap)
+        else:
+            w = worker.Worker(line[0], line[-4], len(line) - 8, 0, line[1], line[2], pm_per_ap)
+        for i in range(3, len(line) - 5):
+            if math.isnan((line[i + 1])):
+                line[i + 1] = 10.5
+            w.hours_available[i-3] = [line[i]]
+        w.allowed_hours(w.hours_available, lista_months)
+        list_workers.append(w)
+    worker.add_to_list(list_workers)
 
 
-                counter = 0
+# Function to extract numbers from the first column of the DataFrame
+def get_nrs(df):
+    numbers = []
+    counter = 0
+    for line in df.values.__array__():
+        line_to_string = str(line[1])
+        if line_to_string != 'nan':
+            try:
+                # Attempt to convert to float
+                id_float = float(line_to_string)
+                # Check if the number is an integer by comparing it to its int version
+                if not id_float.is_integer():
+                    if str(id_float) in numbers:
+                        line_to_string = line_to_string + "0"
+                        if len(line_to_string.split(".")[1]) > 2:
+                            line_to_string = line_to_string[0:-1]
+                    numbers.append(line_to_string)
+            except ValueError:
+                # If it cannot be converted to float, check if it is a hierarchical number
+                if '.' in line_to_string:
+                    numbers.append(line_to_string)
+    return numbers
 
 
+# Function to extract Arbeitspaket from the second column of the DataFrame
+def get_arbeitspaket(df):
+    arbeitspaket = []
+    counter = 0
+    for line in df.values:
+        line_to_string = str(line[2])
+        id_string = str(line[1])
 
-                for index_ws in range(len(workers_array)):
-                    if workers_array[index_ws] > 0:
-                        order_aps.append(
-                            (Nr[index_wh], ids[index_wh], start_date, end_date, [dates], workers_array[index_ws],
-                             worker.list_of_workers[index_ws-1]))
-                        counter += 1
-                        self.workers.append(worker.list_of_workers[index_ws-1])
-                        new_Nr.append(Nr[index_wh])
-                        new_ids.append(ids[index_wh])
-                        h.append(workers_array[index_ws])
-                        self.working_dates_start.append(start_date)
-                        self.working_dates_end.append(end_date)
+        if line_to_string != 'nan' and id_string != 'nan':
+            try:
+                # Attempt to convert to float
+                id_float = float(id_string)
+                # Check if the number is an integer by comparing it to its int version
+                if not id_float.is_integer():
+                    arbeitspaket.append(line_to_string)
+            except ValueError:
+                # If it cannot be converted to float, check if it is a hierarchical number
+                if '.' in id_string:
+                    arbeitspaket.append(line_to_string)
+        else:
+            if counter == 0 or "Summe" in line_to_string:
+                arbeitspaket.append(line_to_string)
+                counter += 1
 
-                if counter == 0:
-                    order_aps.append(
-                        (Nr[index_wh], ids[index_wh], start_date, end_date, [dates], hours[0],
-                         worker_0))
-                    new_Nr.append(Nr[index_wh])
-                    new_ids.append(ids[index_wh])
-                    h.append(0)
-                    self.working_dates_start.append(start_date)
-                    self.working_dates_end.append(end_date)
-
-            index_wh += 1
-        return h, new_ids, new_Nr, list_pre_def
-
-
-def divide_hours_pm(hour, duration):
-    hours_divided_list = []
-    hours_per_month = max(hour / duration, input_file.step_increment)
-    while hour - sum(hours_divided_list) >= hours_per_month:
-        hours_divided_list.append(round_0_25(hours_per_month))
-    if len(hours_divided_list) < duration:
-        hours_divided_list.append(hour - sum(hours_divided_list))
-
-    while len(hours_divided_list) < duration:
-        hours_divided_list.append(0)
-
-    return hours_divided_list
+    return arbeitspaket
 
 
-def max_consecutive_months_worker_can_work(w, start_date, end_date, first_year, required_hours):
-    consecutive_months = 0
-    months = []
-    hours_list = []
+def get_name(df, name):
+    index = 0
+    counter = 0
+    for line in df.values.__array__():
+        if counter < 6:
+            counter += 1
+            index = 0
+            for ll in line:
+                if ll == name:
+                    return index
+                index += 1
+        else:
+            print(f"Error, Company/University not Found: {name}")
+            exit(1)
 
-    total_hours_assigned = 0  # Tracks how many hours the worker has taken on
-    worked_consecutively = False  # Tracks whether worker worked continuously
-    total_months = (end_date.year - start_date.year) * 12 + end_date.month - start_date.month + 1
-    divided_hours = divide_hours_pm(required_hours, total_months)
-    months_supposed_to_work = 0
+def get_all_names(df):
+    global total_id
+    counter_line = 0
+    lista = []
+    try:
+        for line in df.values.__array__():
+            counter_line += 1
+            collecting = False
+            for i, name in enumerate(line):
+                if i == 3 and counter_line == 3:  # Start collecting from the second position (index 2)
+                    collecting = True
 
-    current_date = start_date
-    sum_divided_hours = divided_hours[months_supposed_to_work]
+                if collecting:
+                    if isinstance(name, str) and name.lower() == "summe":
+                        total_id = i
+                        return lista  # Stop collecting when "total" is encountered
 
-    while current_date <= end_date and total_hours_assigned <= required_hours:
-        month = current_date.month - 1
-        year = current_date.year
-        threshold = w.perc_year if w.perc_year != 0 else divided_hours[months_supposed_to_work]
+                    if pd.notna(name) and isinstance(name, str) and not name.isdigit():
+                        lista.append(name)
 
-        # All hours have been parse
-        if total_hours_assigned == required_hours:
+    except AttributeError as e:
+        print(f"Error accessing DataFrame values: {e}")
+        return []
+
+
+def get_Company_hours(df, com_id):
+    Company_worker = []
+    Company_hour = []
+    index = 0
+    for line in df.values.__array__():
+        line_to_string = str(line[com_id])
+
+        if type(line[1]) == str and "Summe der Personenmonate" in line[1]:
             break
 
-        # New year counter restarted for the next year
-        if month == 0:
-            sum_divided_hours = divided_hours[months_supposed_to_work]
+        if line_to_string != 'nan' and str(line[0]) != 'nan':
+            infos = line[com_id].split(" ")
+            Company_worker.append(infos[0])
+            Company_hour.append(int(infos[1][2]))
 
-        if w.perc_year != 1:
-            if w.hours_available_per_month[year - first_year][month] - divided_hours[months_supposed_to_work] >= 1 - threshold and \
-                    w.hours_available[year - first_year] >= sum_divided_hours and w.pm_per_ap >= total_hours_assigned + sum_divided_hours:
-                if not worked_consecutively:
-                    worked_consecutively = True
-
-                months.append(current_date)
-                hours_list.append(divided_hours[months_supposed_to_work])
-                total_hours_assigned += divided_hours[months_supposed_to_work]
-                sum_divided_hours = divided_hours[months_supposed_to_work] + sum_divided_hours
-                months_supposed_to_work += 1
-                consecutive_months += 1
-
-            else:
-                # If worker stops due to lack of available hours after starting, break the loop
-                if worked_consecutively:
-                    # If the worker worked continuously but didn't reach the required hours, continue working
-                    while len(hours_list) < total_months:
-                        hours_list.append(0)
-                        current_date += relativedelta(months=1)
-                        months.append(current_date)
-                    break
-                hours_list.append(0)
-                months.append(current_date)
-
-        else:
-            if w.hours_available_per_month[year - first_year][month] >= divided_hours[months_supposed_to_work] and \
-                    w.hours_available[year - first_year] >= sum_divided_hours and w.pm_per_ap >= total_hours_assigned + sum_divided_hours:
-                if not worked_consecutively:
-                    worked_consecutively = True
-
-                months.append(current_date)
-                hours_list.append(divided_hours[months_supposed_to_work])
-                total_hours_assigned += divided_hours[months_supposed_to_work]
-                sum_divided_hours = divided_hours[months_supposed_to_work] + sum_divided_hours
-                months_supposed_to_work += 1
-                consecutive_months += 1
-
-            else:
-                # If worker stops due to lack of available hours after starting, break the loop
-                if worked_consecutively:
-                    # If the worker worked continuously but didn't reach the required hours, continue working
-                    while len(hours_list) < total_months:
-                        hours_list.append(0)
-                        current_date += relativedelta(months=1)
-                        months.append(current_date)
-                    break
-                hours_list.append(0)
-                months.append(current_date)
-
-        # Move to the next month
-        current_date += relativedelta(months=1)
-
-    while len(hours_list) < total_months:
-        hours_list.append(0)
-
-    if total_hours_assigned < required_hours:
-        return consecutive_months, hours_list, months
-
-    return consecutive_months, hours_list, months
+    return Company_hour
 
 
-def get_min_wh(w, current_date, finishing_date, first_year):
-    minimum_wh = 1000
-
-    while current_date < finishing_date:
-        year = current_date.year
-        month = current_date.month
-
-        if w.hours_available_per_month[year - first_year, month - 1] < minimum_wh:
-            minimum_wh = w.hours_available_per_month[year - first_year, month - 1]
-        current_date = (current_date.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
-
-    minimum_wh = round_0_25(minimum_wh)
-
-    return minimum_wh
+def get_chosen_worker(id):
+    for w in worker.list_of_workers:
+        if w.id == id:
+            return w
+        return None
+    return None
 
 
-def get_month_name(date_obj):
-    """Returns the full month name from a datetime object."""
-    return date_obj.strftime("%B")
+def get_Company_hours_and_worker(df, com_id):
+    Company_worker = []
+    Company_hour = []
+    ids = []
+    Nrs = []
+    index = 0
+    for line in df.values.__array__():
+        line_to_string = str(line[com_id])
+
+        if type(line[1]) == str and "Summe der Personenmonate" in line[1]:
+            break
+
+        if line_to_string != 'nan' and str(line[0]) != 'nan':
+            infos = line[com_id].split(" ")
+            chosen_worker = get_chosen_worker(int(infos[0][2]))
+            Company_worker.append(chosen_worker)
+            Company_hour.append(int(infos[1][2]))
+            ids.append(line[0])
+            Nrs.append(line[1])
+
+    return Company_worker, Company_hour, ids, Nrs
 
 
-def choose_workers(start_date, end_date, required_hours, first_year, last_year, AP_id):
-    current_date = datetime.datetime.strptime(start_date, "%d.%m.%Y")
-    finishing_date = datetime.datetime.strptime(end_date, "%d.%m.%Y")
-    remaining_hours = required_hours
-    work_distribution = []
-    hours_distribution = []
-    dates_distribution = []
-    total_months = calculate_delta(start_date, end_date)
-    av_wh = required_hours / total_months
-    loop = False
-    locked = 0
+def get_workers_pre_defined(df):
+    pre_define_workers = []
+    id_com = get_name(df, "Auft")
+    for line in df.values.__array__():
+        line_to_string = str(line[id_com])
+        workers_split = line_to_string.split(";")
+        pre_de_temp = []
+        for w_s in workers_split:
+            if str(line[1]) == 'Summe der Personalmonate':
+                return pre_define_workers
+            if w_s != "nan" and w_s != "Auft" and str(line[1]) != 'nan':
+                pre_de_temp.append(w_s)
+                continue
+            if str(line[1]) != 'nan' and not float(line[1]).is_integer():
+                pre_de_temp.append(0)
+        if len(pre_de_temp) != 0:
+            pre_define_workers.append(pre_de_temp)
+    return pre_define_workers
+
+
+# Function to extract APES values from the fifth column of the DataFrame
+def get_Company(df, name):
+    Company = []
+    com_id = get_name(df, name)
     counter = 0
-    worker_zero = worker_0
 
-    while remaining_hours > 0 and current_date <= finishing_date:
+    index = 0
+    for line in df.values.__array__():
+        line_to_string = str(line[com_id])
 
-        if locked == 0:
-            counter += 1
-        locked = 0
+        if type(line[1]) == str and "Summe der Personenmonate" in line[1]:
+            break
 
-        for w in worker.list_of_workers:
+        if line_to_string != 'nan' and str(line[1]) != 'nan':
+            try:
+                id_float = float(line[1])
+                if not id_float.is_integer():
+                    Company.append(line_to_string)
+            except ValueError:
+                if '.' in line[1]:
+                    Company.append(line_to_string)
+        else:
+            try:
+                if line_to_string == 'nan' and str(line[1]) != 'nan' and not float(line[1]).is_integer():
+                    Company.append(0)
+            except ValueError:
+                if '.' in line[1]:
+                    Company.append(0)
+    return Company
 
-            av_wh = remaining_hours / total_months
 
-            if loop:
-                av_wh = get_min_wh(w, current_date, finishing_date, first_year)
+# Define a basic color map for indexed colors if needed
+INDEXED_COLOR_MAP = {
+    8: 'Black',
+    13: 'Red',
+    14: 'Blue',
+    15: 'Yellow',
+    # Add more indexed colors if needed
+}
 
-            if remaining_hours <= 0:
-                break
 
-            # how many months can this worker work
-            max_months, hours_list, dates = max_consecutive_months_worker_can_work(w, current_date,
-                                                                                   finishing_date,
-                                                                                   first_year,
-                                                                                   remaining_hours)
+def rgb_to_color_name(rgb):
+    # Ensure `rgb` is in a format like "RRGGBB"
+    if not rgb:
+        return 'No Color'
 
-            if remaining_hours - sum(hours_list) == 0:
-                work_distribution.append(w)
-                hours_distribution.append(sum(hours_list))
-                remaining_hours -= sum(hours_list)
+    if rgb.startswith('FF'):  # Handle cases where RGB is in format 'FFRRGGBB'
+        rgb = rgb[2:]
 
+    try:
+        hex_color = f"#{rgb[:6]}"  # Get the first 6 characters, ignoring the alpha channel if present
+        return webcolors.hex_to_name(hex_color)
+    except ValueError:
+        # If the exact color name is not found, get the closest match
+        closest_name = None
+        min_distance = float('inf')
+        rgb_tuple = webcolors.hex_to_rgb(hex_color)
+        for color_name, color_hex in webcolors.CSS3_NAMES_TO_HEX.items():
+            distance = sum((c1 - c2) ** 2 for c1, c2 in zip(rgb_tuple, webcolors.hex_to_rgb(color_hex)))
+            if distance < min_distance:
+                closest_name = color_name
+                min_distance = distance
+        return closest_name
+
+
+def get_color_of_company(df, filepath, name):
+    # Load the workbook and select the only sheet
+    wb = load_workbook(filepath, data_only=True)
+    ws = wb.active  # Since there's only one sheet, we can use .active
+    com_id = get_name(df, name) + 1
+    Company_worker = []
+    Company_hour = []
+    colors = []
+
+    for row in ws.iter_rows(min_row=6, max_row=ws.max_row):  # Assuming header in the first row
+        cell = row[com_id - 1]  # Adjust for 0-based indexing
+
+        if isinstance(cell.value, str) and "Summe der Personenmonate" in cell.value:
+            break
+
+        if cell.value is not None:
+            Company_worker.append(cell.value)
+            color = cell.font.color
+            color_name = 'No Color'
+
+    return Company_worker, Company_hour, colors
+
+
+# Function to extract date information from the Excel file
+def get_dates(filepath):
+    # Load the Excel workbook
+    wb = openpyxl.load_workbook(filepath, data_only=True)
+    fs = wb.active
+    fs_count_row = fs.max_row
+    fs_count_col = fs.max_column
+    indexs_begin = []
+    indexs_end = []
+    comparator_color = 0
+
+    first_color = fs.cell(column=8, row=6).fill.start_color.index
+
+    if first_color == 9:
+        comparator_color = 8
+    else:
+        comparator_color = 1
+
+    # Iterate through rows and columns to find date blocks
+    for row in range(6, fs_count_row + 1):
+        end = 0
+        start = 0
+        for column in range(total_id + 1, fs_count_col + 1):
+            cell_color = fs.cell(column=column, row=row)
+            # Check cell color to identify date blocks
+            color = cell_color.fill.start_color
+            if color.index == comparator_color:
+                if column == 1:
+                    break
+                if start == 0:
+                    start = column
+                    indexs_begin.append(column)
+                    end = column
+                end += 1
             else:
-                if max_months > 0:
-                    remaining_hours -= sum(hours_list)
-                    work_distribution.append(w)
-                    hours_distribution.append(sum(hours_list))
+                if end > 0:  # If the block ends, record its end index
+                    indexs_end.append(end)
+                    break
+                else:
+                    continue
 
-            for d, h in zip(dates, hours_list):
-                if h > 0:
-                    add_entry(w.id, get_month_name(d), h, AP_id, d.year)
-                    locked += 1
+    return [indexs_begin, indexs_end]
 
-            dates_distribution.append([dates])
-            update_worker(w, hours_list, first_year, last_year, dates)
-
-        if counter > 2:
-            work_distribution.append(worker_zero)
-            hours_distribution.append(remaining_hours)
-            remaining_hours = 0
-        loop = True
-
-    if len(work_distribution) == 0:
-        work_distribution.append(worker_zero)
-        hours_distribution.append(required_hours)
-
-    return work_distribution, hours_distribution, dates_distribution
+# Function to filter out strings containing "jahr" from a list of strings
+def filter_strings(string_list):
+    new_years_array = []
+    for y in string_list:
+        if str(y) != 'nan':
+            new_years_array.append(y)
+    return new_years_array
 
 
-def generate_monthly_dates(start_date_str, end_date_str):
-    # Parse input date strings to datetime.date objects
-    start_date = datetime.datetime.strptime(start_date_str, '%d.%m.%Y').date()
-    end_date = datetime.datetime.strptime(end_date_str, '%d.%m.%Y').date()
-
-    # List to store the monthly dates
-    monthly_dates = []
-
-    # Start at the first day of the month of the start date
-    current_date = start_date.replace(day=1)
-
-    # Loop until the current_date exceeds the end_date
-    while current_date <= end_date:
-        # Append the current month date to the list
-        monthly_dates.append(current_date)
-        # Move to the first day of the next month
-        next_month = current_date.month % 12 + 1
-        next_year = current_date.year + (current_date.month // 12)
-        current_date = current_date.replace(year=next_year, month=next_month, day=1)
-
-    return monthly_dates
-
-
-def update_worker(w, hours_list, first_year, last_year, dates):
-    if w.id == 2:
-        print("ok")
-    for d, h in zip(dates, hours_list):
-        w.hours_available[d.year - first_year] -= h
-        w.hours_available_per_month[d.year - first_year][d.month - 1] -= h
+# Function to map month abbreviations to numerical representation
+def get_month_num(month):
+    month_mapping = {
+        "Jan": "01",
+        "Feb": "02",
+        "Mrz": "03",
+        "Apr": "04",
+        "Mai": "05",
+        "Jun": "06",
+        "Jul": "07",
+        "Aug": "08",
+        "Sep": "09",
+        "Okt": "10",
+        "Nov": "11",
+        "Dez": "12",
+        "Fev": "02",
+        "Mar": "03",
+        "Abr": "04",
+        "Ago": "08",
+        "Set": "09",
+        "Out": "10",
+    }
+    return month_mapping.get(month, None)
 
 
-def calculate_delta(st, ft):
-    # Calculate the delta (duration) between two dates in months
-    unix_st = datetime.datetime.strptime(st, "%d.%m.%Y")
-    unix_st = int(unix_st.timestamp())
+def count_months_per_year(months_list):
+    # Initialize a list to store the count of months per year
+    months_per_year = []
 
-    unix_end = datetime.datetime.strptime(ft, "%d.%m.%Y")
-    unix_end = int(unix_end.timestamp())
+    # Initialize variables to track the current year and month count
+    current_year = 1
+    current_month_count = 0
+    counter = 0
+    first_month = months_list[0]
+    new_year_month = months_list[1]
 
-    delta_unix = unix_end - unix_st
-    delta_unix = round(delta_unix / 60 / 60 / 24 / 30)
+    first = 0
 
-    return delta_unix
+    # Iterate through the months list
+    for month in months_list:
 
+        if first == 0:
+            current_month_count += 1
+            first = 1
 
-def round_0_25(duration):
-    comparator = 0
-    while comparator < duration:
-        comparator += input_file.step_increment
-    return comparator
+        counter += 1
+        # Check if the current month is December or if it's the last month in the list
+        if month == 'Dez' or counter == len(months_list):
+            # Append the month count for the current year to the list
+            months_per_year.append(current_month_count)
 
+            # Reset the month count for the next year
+            current_month_count = 0
 
-def round_down_to_step(value):
-    return round((int(value)) * input_file.step_increment, 10)
+            # Increment the current year
+            current_year += 1
 
-def round_up_to_step(value):
-    if value % input_file.step_increment == 0:
-        return value
-    return ((int(value / input_file.step_increment)) + 1) * input_file.step_increment
+        # Increment the month count for the current year
+        current_month_count += 1
 
-def round_to_step(value):
-    """
-    Rounds value up to the nearest multiple of `step`,
-    but first rounds down to nearest 0.05.
-    """
-    value = round_down_to_step(value)  # optional pre-rounding
-    return round_up_to_step(value)
-
-
-def zip_lists(*lists: List[Any]) -> List[Tuple]:
-    """Zips multiple lists into a list of tuples (rows)."""
-    return list(zip(*lists))
+    return months_per_year
 
 
-
-import random
-from typing import List, Any, Tuple
-
-import random
-from typing import List, Any, Tuple
-
-import random
-from typing import List, Any, Tuple
+def get_years(df):
+    years = df.values.__array__()[1][4:]
+    return years
 
 
-def shuffle_aligned_lists(
-        Nrs: List[Any],
-        ids: List[Any],
-        year_start: List[Any],
-        year_end: List[Any],
-        pre_define_workers: List[Any],
-        hours: List[Any]
-) -> Tuple[List[Any], List[Any], List[Any], List[Any], List[Any], List[Any], List[int]]:
-    # Step 1: Map (Nr, ID) to their full data from year_start etc.
-    unique_data_map = {}
-    data_index = 0
-    for nr, id_ in zip(Nrs, ids):
-        key = (nr, id_)
-        if key not in unique_data_map and data_index < len(year_start):
-            unique_data_map[key] = (
-                year_start[data_index],
-                year_end[data_index],
-                pre_define_workers[data_index],
-                hours[data_index]
-            )
-            data_index += 1
+# Function to convert dates to Unix format
+def get_dates_unix(df, lista):
+    list_begin = np.array(lista[0])
+    list_end = np.array(lista[1])
+    diff = list_begin[0]
+    diff2 = list_end[0] + diff
+    list_begin = (list_begin - diff)  # 6 see table
+    list_end = (list_end - (diff + 1))  # 7 see table
+    lista_anos_begin = []
+    lista_anos_end = []
+    months = np.array(df.values.__array__()[2][diff - 1:])
+    years = get_years(df)
+    years = filter_strings(years)
+    lista_begin_datas_unix = []
+    lista_end_datas_unix = []
 
-    # Step 2: Count occurrences
-    from collections import defaultdict
-    occurrence_count = defaultdict(int)
-    for nr, id_ in zip(Nrs, ids):
-        occurrence_count[(nr, id_)] += 1
+    temp_array = []
+    for m in months:
+        if str(m) != 'nan':
+            temp_array.append(m)
+    months = temp_array
 
-    # Step 3: Extract and shuffle unique keys
-    unique_keys = list(unique_data_map.keys())
-    random.shuffle(unique_keys)
+    months_per_year_count = count_months_per_year(months)
 
-    # Step 4: Reconstruct aligned lists
-    New_Nrs = []
-    New_ids = []
-    New_year_start = []
-    New_year_end = []
-    New_pre_define_workers = []
-    New_hours = []
-    Shuffle_to_Original_Index = []
+    # Extract year information from column labels
+    for m in list_begin:
+        months_passed = months_per_year_count[0]
+        index = 0
+        while index < len(months_per_year_count):
+            if m < months_passed:
+                lista_anos_begin.append(index)
+                break
+            index += 1
+            months_passed += months_per_year_count[index]
 
+    for m in list_end:
+        months_passed = months_per_year_count[0]
+        index = 0
+        while index <= len(months_per_year_count):
+            if m < months_passed:
+                lista_anos_end.append(index)
+                break
+            index += 1
+            months_passed += months_per_year_count[index]
 
-    for key in unique_keys:
-        nr, id_ = key
-        occurrences = occurrence_count[key]
-        orig_indices = [i for i, (n, d) in enumerate(zip(Nrs, ids)) if (n, d) == key]
+    end_day_mapping = {
+        "Jan": "31", "Feb": "28", "Mrz": "31", "Apr": "30", "Mai": "31", "Jun": "30",
+        "Jul": "31", "Aug": "31", "Sep": "30", "Okt": "31", "Nov": "30", "Dez": "31"
+    }
 
-        for i in range(occurrences):
-            New_Nrs.append(nr)
-            New_ids.append(id_)
-            Shuffle_to_Original_Index.append(orig_indices[i])
-            if i == 0:
-                # Original entry — has full data
-                ys, ye, pdw, hr = unique_data_map[key]
-                New_year_start.append(ys)
-                New_year_end.append(ye)
-                New_pre_define_workers.append(pdw)
-                New_hours.append(hr)
+    # Convert date components to Unix format
+    for index in range(len(list_begin)):
+        data = str("01." + get_month_num(months[list_begin[index]]) + "." + str(years[lista_anos_begin[index]]))
+        lista_begin_datas_unix.append(data)
 
-    return New_Nrs, New_ids, New_year_start, New_year_end, New_pre_define_workers, New_hours,Shuffle_to_Original_Index
+    for index in range(len(list_end)):
+        day = end_day_mapping.get(months[list_end[index]])
+        month = get_month_num(months[list_end[index]])
+        year = years[lista_anos_end[index]]
+        if int(year) % 4 == 0 and month == "Feb":
+            data = str(day) + "." + "29" + "." + str(year)
+            lista_end_datas_unix.append(data)
+        else:
+            data = str(day) + "." + str(month) + "." + str(year)
+            lista_end_datas_unix.append(data)
 
-
-def restore_by_index(
-    shuffled_Nrs: List[Any],
-    shuffled_ids: List[Any],
-    year_start: List[Any],
-    year_end: List[Any],
-    pre_define_workers: List[Any],
-    hours: List[Any],
-    workers: List[Any],
-    shuffle_to_original_idx: List[int]
-) -> Tuple[List[Any], List[Any], List[Any], List[Any], List[Any], List[Any]]:
-
-    n = max(shuffle_to_original_idx) + 1
-
-    # Initialize with zeros
-    Restored_Nrs = [None] * n
-    Restored_ids = [None] * n
-    Restored_year_start = ["0"] * n
-    Restored_year_end = ["0"] * n
-    Restored_pre_define_workers = [[0]] * n
-    Restored_hours = ["0"] * n
-    Restored_workers = [[0]] * n
-
-    unique_index = 0
-    seen = set()
-
-    for i, idx in enumerate(shuffle_to_original_idx):
-        nr = shuffled_Nrs[i]
-        id_ = shuffled_ids[i]
-        key = (nr, id_)
-
-        Restored_Nrs[idx] = nr
-        Restored_ids[idx] = id_
-
-        if key not in seen:
-            Restored_year_start[idx] = year_start[unique_index]
-            Restored_year_end[idx] = year_end[unique_index]
-            Restored_pre_define_workers[idx] = pre_define_workers[unique_index]
-            Restored_hours[idx] = hours[unique_index]
-            Restored_workers[idx] = workers[unique_index]
-            seen.add(key)
-            unique_index += 1
-
-    return Restored_Nrs, Restored_ids, Restored_year_start, Restored_year_end, Restored_pre_define_workers, Restored_hours
-
-
-
+    return [lista_begin_datas_unix, lista_end_datas_unix], months_per_year_count, lista_anos_begin, lista_anos_end
