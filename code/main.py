@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
 from io import BytesIO
 import input_file
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, Q
 from PySide6.QtGui import QFont
 from xhtml2pdf import pisa
 from weasyprint import HTML
+import copy
 
 # !/usr/bin/env python3
 
@@ -59,6 +61,17 @@ month_map = {
 # Só para ordenação: converte '3.1' → (3, 1), mas sem modificar o valor original
 def ap_id_sort_key(ap_id_str):
     return tuple(map(int, ap_id_str.split('.')))
+
+
+def calculate_proj_cost(years, hours_year_work_every_one):
+    # Add rows for sum worker data
+    cost_project = 0
+    for i in range(len(years)):
+        for j in range(len(worker.list_of_workers)):
+            cost_project += round(float(hours_year_work_every_one[j][i] - worker.list_of_workers[j].hours_available[i][0]) * \
+                            worker.list_of_workers[j].salary,2)
+    return cost_project
+
 
 
 def show_popup(message):
@@ -318,9 +331,25 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
 
     pre_define_workers = input_file.get_workers_pre_defined(df)
 
-    New_Nrs, New_ids, New_year_start, New_year_end, New_pre_define_workers, New_hours, Shuffle_to_Original_Index = AP.shuffle_aligned_lists(ap1.Nr, ids, lista_datas_not_to_change[0], lista_datas_not_to_change[1], pre_define_workers, ap1.hours)
+    years = np.linspace(ap1.year_start, ap1.year_end, ap1.year_end - ap1.year_start + 1)
+    list_aps = []
+    dict_aps_infos = {}
+    cost = 0
 
-    h, ids_check, Nrs, pre_def = ap1.get_workers([New_year_start,New_year_end], New_ids, ap1.year_start, ap1.year_end, New_Nrs,
+    for times in range(100):
+
+        # clear workers info
+        worker.list_of_workers.clear()
+
+        # get workers hours
+        input_file.get_workers_info(filepath_workers, lista_months)
+
+        # sorte the worker from most expensive to least
+        worker.sorte_workers()
+
+        New_Nrs, New_ids, New_year_start, New_year_end, New_pre_define_workers, New_hours, Shuffle_to_Original_Index = AP.shuffle_aligned_lists(ap1.Nr, ids, lista_datas_not_to_change[0], lista_datas_not_to_change[1], pre_define_workers, ap1.hours)
+
+        h, ids_check, Nrs, pre_def = ap1.get_workers([New_year_start,New_year_end], New_ids, ap1.year_start, ap1.year_end, New_Nrs,
                                                  entity,
                                                  df, New_pre_define_workers, New_hours)
 
@@ -328,7 +357,21 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
     #                                             entity,
     #                                             df, pre_define_workers, ap1.hours)
 
+        cost_this_version = calculate_proj_cost(years, hours_year_work_every_one)
+
+        if cost_this_version > cost:
+            cost = cost_this_version
+            list_aps.clear()
+            list_aps = AP.order_aps.copy()
+            dict_aps_infos = copy.deepcopy(AP.global_data_zettel_infos)
+        AP.order_aps.clear()
+        AP.global_data_zettel_infos.clear()
+
+
+
     # For example, reconstruct data arrays
+    AP.order_aps = list_aps
+    AP.global_data_zettel_infos = dict_aps_infos
     order_aps_final = sorted(AP.order_aps, key=lambda x: tuple(map(float, x[1].split("."))))
 
     restored_Nrs = [x[0] for x in order_aps_final]
@@ -406,14 +449,9 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
             </tr>
     """
 
-    print(sum(h))
-    print(len(h))
-    print(len(ap1.working_dates_start))
-    print(h)
     sum_test = 0
     sum_test2 = 0
     ap_not_distribute = []
-    years = np.linspace(ap1.year_start, ap1.year_end, ap1.year_end - ap1.year_start + 1)
     array_working_hours_per_year = np.zeros((len(worker.list_of_workers), len(years)))
 
     for w, wh, dates_st, dates_ft, Nr, id in zip(restored_workers,restored_hours,restored_start,restored_end,
@@ -543,8 +581,6 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
         """
 
     sum_t_b = sum_t
-    print(sum_t_b)
-    print(sum_t - sum_t_b)
     cost_project_formatted = format_euros(cost_project)
     aps_str = ""
 
@@ -730,7 +766,7 @@ def run_process(df, filepath, filepath_workers, name_of_output_file, entity):
                 html_content_2 += f"""
                 <tr>
                     <td>{str(wk.name) + " " + str(wk.surname)}</td>
-                    <td>{round(hours,2)}</td>
+                    <td>{round(hours * 40,2)}</td>
                     <td>{int(year)}</td>
                     <td>{months_german[month_idx]}</td>
                 </tr>
